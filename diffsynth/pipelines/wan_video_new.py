@@ -1810,7 +1810,8 @@ def model_fn_wan_video(
 
         if dit.TI2V2 or dit.TI2V3:
             action_emb = action_emb.unsqueeze(0) # [1, T, 3072]
-            action_emb = action_emb.unsqueeze(2).repeat(1,1,64,1).flatten(1,2)
+            spatial_tokens = latents.shape[3] * latents.shape[4] // 4
+            action_emb = action_emb.unsqueeze(2).repeat(1,1,spatial_tokens,1).flatten(1,2)
             t = t + action_emb
 
         if use_unified_sequence_parallel and dist.is_initialized() and dist.get_world_size() > 1:
@@ -1827,7 +1828,8 @@ def model_fn_wan_video(
             ]).flatten()
             t = dit.time_embedding(sinusoidal_embedding_1d(dit.freq_dim, timestep).unsqueeze(0)).repeat(B, 1, 1)
             if dit.TI2V2 or dit.TI2V3:
-                action_emb = action_emb.unsqueeze(2).repeat(1,1,64,1).flatten(1,2)
+                spatial_tokens = latents.shape[3] * latents.shape[4] // 4
+                action_emb = action_emb.unsqueeze(2).repeat(1,1,spatial_tokens,1).flatten(1,2)
                 t = t + action_emb
             t_mod = dit.time_projection(t).unflatten(2, (6, dit.dim))
         elif bs_1:
@@ -1839,7 +1841,8 @@ def model_fn_wan_video(
 
             if dit.TI2V2 or dit.TI2V3:
                 action_emb = action_emb.unsqueeze(0) # [1, T, 3072]
-                action_emb = action_emb.unsqueeze(2).repeat(1,1,64,1).flatten(1,2)
+                spatial_tokens = latents.shape[3] * latents.shape[4] // 4
+                action_emb = action_emb.unsqueeze(2).repeat(1,1,spatial_tokens,1).flatten(1,2)
                 t = t + action_emb
             t_mod = dit.time_projection(t).unflatten(2, (6, dit.dim))
     else:
