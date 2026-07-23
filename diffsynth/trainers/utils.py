@@ -625,6 +625,7 @@ def launch_training_task(
     val_dataset: torch.utils.data.Dataset,
     model: DiffusionTrainingModule,
     model_logger: ModelLogger,
+    train_sampler=None,
     learning_rate: float = 1e-5,
     weight_decay: float = 1e-2,
     num_workers: int = 8,
@@ -650,7 +651,7 @@ def launch_training_task(
 
     optimizer = torch.optim.AdamW(model.trainable_modules(), lr=learning_rate, weight_decay=weight_decay)
     scheduler = torch.optim.lr_scheduler.ConstantLR(optimizer)
-    dataloader = torch.utils.data.DataLoader(dataset, shuffle=True, collate_fn=lambda x: x[0], num_workers=num_workers)
+    dataloader = torch.utils.data.DataLoader(dataset, shuffle=train_sampler is None, sampler=train_sampler, collate_fn=lambda x: x[0], num_workers=num_workers)
     val_dataloader = torch.utils.data.DataLoader(val_dataset, shuffle=False, collate_fn=lambda x: x[0], num_workers=num_workers)
     accelerator = Accelerator(
         gradient_accumulation_steps=gradient_accumulation_steps,
@@ -669,7 +670,6 @@ def launch_training_task(
 
         for data in tqdm(dataloader):
             with accelerator.accumulate(model):
-                optimizer.zero_grad()
                 if dataset.load_from_cache:
                     loss = model({}, inputs=data)
                 else:
@@ -680,6 +680,7 @@ def launch_training_task(
                 optimizer.step()
                 model_logger.on_step_end(accelerator, model, save_steps)
                 scheduler.step()
+                optimizer.zero_grad()
 
                 if accelerator.is_main_process:
                     writer.add_scalar("Loss/step", loss.item(), global_step)
@@ -687,9 +688,6 @@ def launch_training_task(
                 epoch_steps += 1
                 global_step += 1
 
-                # to avoid the too long epoch 
-                if epoch_steps > 500:
-                    break
         if accelerator.is_main_process and epoch_steps > 0:
             writer.add_scalar("Loss/epoch", epoch_loss / epoch_steps, epoch_id)
 
